@@ -1,0 +1,49 @@
+{
+  "name": "ai-skills-house-automation",
+  "version": "2.0.0",
+  "description": "Professional web automation tool for generating authentic user engagement metrics using advanced browser fingerprinting and geolocation simulation",
+  "main": "automated.js",
+  "scripts": {
+    "start": "node automated.js",
+    "dev": "node automated.js",
+    "test": "echo \"No tests specified\" && exit 0",
+    "lint": "eslint automated.js",
+    "validate": "node -c automated.js"
+  },
+  "keywords": [
+    "automation",
+    "web-scraping", 
+    "puppeteer",
+    "engagement-metrics",
+    "browser-automation",
+    "fingerprinting",
+    "geolocation",
+    "traffic-simulation",
+    "ai-skills-house"
+  ],
+  "author": {
+    "name": "AI Skills House Development Team",
+    "email": "dev@aiskillshouse.com",
+    "url": "https://aiskillshouse.com"
+  },
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aiskillshouse/automation.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aiskillshouse/automation/issues"
+  },
+  "homepage": "https://aiskillshouse.com",
+  "dependencies": {
+    "puppeteer": "^24.22.0"
+  },
+  "devDependencies": {},
+  "preferGlobal": false,
+  "private": false
+}
