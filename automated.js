@@ -1110,9 +1110,9 @@ async function openEnhancedTabs(url, numberOfClicks) {
       
       console.log(`[SUCCESS] Click ${clickIndex + 1} page loaded successfully!`);
       
-      // Wait for page to be fully interactive
+      // Wait for page to be fully interactive - reduced for faster execution
       console.log(`[WAITING] Waiting for page elements to load...`);
-      await delay(10000); // Increased initial wait
+      await delay(3600); // Reduced from 10000 to 5000
       
       // Check page content
       const pageTitle = await page.title();
@@ -1315,9 +1315,9 @@ async function openEnhancedTabs(url, numberOfClicks) {
         if (submitted) {
           console.log(`[GEMINI] ✅ Send button clicked successfully! Waiting for response...`);
           
-          // Wait for initial response (25 seconds)
-          console.log(`[GEMINI] Phase 1: Waiting for response to load (25 seconds)...`);
-          await delay(25000);
+          // Wait for initial response (15 seconds) - reduced for faster execution
+          console.log(`[GEMINI] Phase 1: Waiting for response to load (15 seconds)...`);
+          await delay(15000);
           
           // Check for content changes
           const afterClickContent = await page.evaluate(() => document.body.innerText);
@@ -1328,13 +1328,13 @@ async function openEnhancedTabs(url, numberOfClicks) {
             console.log(`[GEMINI] ⚠️ No significant content change detected yet, continuing to wait...`);
           }
           
-          // Additional wait to ensure complete response loading (30 seconds)
-          console.log(`[GEMINI] Phase 2: Ensuring complete response loading (30 seconds)...`);
-          await delay(30000); // 30 second delay after response as requested
+          // Additional wait to ensure complete response loading (20 seconds) - reduced
+          console.log(`[GEMINI] Phase 2: Ensuring complete response loading (20 seconds)...`);
+          await delay(20000); // Reduced from 30000 to 20000
           
           // Final content check
           const finalContent = await page.evaluate(() => document.body.innerText);
-          console.log(`[GEMINI] ✅ Complete response loading finished. Total wait: 55 seconds`);
+          console.log(`[GEMINI] ✅ Complete response loading finished. Total wait: 35 seconds`);
           console.log(`[GEMINI] Final content length: ${finalContent.length} characters`);
           
           // Try to detect if response is still loading
@@ -1343,21 +1343,21 @@ async function openEnhancedTabs(url, numberOfClicks) {
           });
           
           if (isLoading) {
-            console.log(`[GEMINI] ⚠️ Loading indicator still present, waiting additional 15 seconds...`);
-            await delay(15000);
+            console.log(`[GEMINI] ⚠️ Loading indicator still present, waiting additional 10 seconds...`);
+            await delay(10000); // Reduced from 15000 to 10000
             console.log(`[GEMINI] ✅ Additional wait completed.`);
           }
           
         } else {
-          console.log(`[WARNING] ❌ No send button found! Using extended fallback delay...`);
+          console.log(`[WARNING] ❌ No send button found! Using reduced fallback delay...`);
           console.log(`[WARNING] Available page elements were not clickable or missing expected buttons`);
-          await delay(40000); // Extended fallback delay
+          await delay(25000); // Reduced from 40000 to 25000
         }
         
       } catch (error) {
         console.log(`[ERROR] Interaction error: ${error.message}`);
-        // Extended fallback delay
-        await delay(40000);
+        // Reduced fallback delay
+        await delay(25000); // Reduced from 40000 to 25000
       }
       
       console.log(`[INTERACTION] Page interaction completed for click ${clickIndex + 1}`);
@@ -1391,7 +1391,7 @@ async function openEnhancedTabs(url, numberOfClicks) {
       completedClicks++;
       
       // Random delay after each click to prevent "check internet connection" errors
-      const randomDelay = Math.floor(Math.random() * (120000 - 30000 + 1)) + 30000; // 30-120 seconds
+      const randomDelay = Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000; // 20-60 seconds (reduced)
       const delayMinutes = (randomDelay / 60000).toFixed(1);
       console.log(`[ANTI_RATE_LIMIT] Random delay: ${delayMinutes} minutes (${randomDelay / 1000}s) to prevent rate limiting...`);
       console.log(`[ANTI_RATE_LIMIT] This prevents Gemini "check internet connection" errors`);
@@ -1459,11 +1459,11 @@ async function runEnhancedAutomation() {
   console.log(`[CONFIG] Clicks per batch: ${clicksPerBatch}`);
   console.log(`[CONFIG] Windows: 1 dedicated window per click`);
   console.log(`[CONFIG] Delay after every 10 clicks: 30 seconds`);
-  console.log(`[CONFIG] Random delay after each click: 30-120 seconds (prevents rate limiting)`);
-  console.log(`[CONFIG] Response wait time: 25s + 30s = 55s total`);
+  console.log(`[CONFIG] Random delay after each click: 20-60 seconds (prevents rate limiting)`);
+  console.log(`[CONFIG] Response wait time: 15s + 20s = 35s total`);
   console.log(`[CONFIG] Script runs continuously (no auto-exit)`);
   console.log(`[PERFORMANCE] 🖥️ Windows optimized - One window per click!`);
-  console.log(`[TIMING] ⏱️ Extended delays for complete response loading + anti-rate-limit`);
+  console.log(`[TIMING] ⚡ Reduced delays for faster execution + anti-rate-limit`);
   console.log(`[ANTI_RATE_LIMIT] 🛡️ Random delays prevent Gemini "check internet connection" errors`);
   console.log("=".repeat(70) + "\n");
   
@@ -1487,7 +1487,7 @@ async function runEnhancedAutomation() {
         
         // Note: No additional delay needed here as random delay (30-120s) is built into each click
       }    console.log(`\n[BATCH_COMPLETE] Batch ${batchCount} finished - Total clicks so far: ${globalClickCounter}`);
-    console.log(`[RATE_LIMITING] Each click includes 30-120 second random delay to prevent Gemini rate limits`);
+    console.log(`[RATE_LIMITING] Each click includes 20-60 second random delay to prevent Gemini rate limits`);
     console.log(`[BATCH_INFO] Next 30-second break will occur after ${10 - (globalClickCounter % 10)} more clicks`);
     
     batchCount++;
