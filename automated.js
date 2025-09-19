@@ -14,15 +14,14 @@ const path = require("path");
 
 /**
  * Global click counter to track total engagements across all sessions
- * Script will automatically exit when this reaches 100 clicks
+ * Script will continue running indefinitely (no auto-exit)
  * @type {number}
  */
 let globalClickCounter = 0;
-const MAX_CLICKS = 100;
 
 /**
  * Array to store detailed information about each successful click
- * Will be used to generate CSV report at the end
+ * Will be used to generate CSV report periodically
  * @type {Array<Object>}
  */
 let clickReportData = [];
@@ -37,9 +36,9 @@ let clickReportData = [];
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /**
- * Increments the global click counter and checks if maximum clicks reached
+ * Increments the global click counter and generates periodic reports
  * @param {Object} clickData - Detailed information about the click
- * @returns {Promise<boolean>} True if script should continue, false if should exit
+ * @returns {Promise<boolean>} Always returns true (no auto-exit)
  */
 async function incrementClickCounter(clickData = {}) {
   globalClickCounter++;
@@ -47,22 +46,30 @@ async function incrementClickCounter(clickData = {}) {
   // Add the click record to our report data and update CSV
   await addClickRecord(clickData);
   
-  console.log(`[CLICK_COUNTER] Total clicks: ${globalClickCounter}/${MAX_CLICKS}`);
+  console.log(`[CLICK_COUNTER] Total clicks: ${globalClickCounter}`);
   
-  if (globalClickCounter >= MAX_CLICKS) {
-    console.log(`\n[SYSTEM] Maximum clicks reached (${MAX_CLICKS}). Initiating graceful shutdown...`);
-    await generateCSVReport(); // Generate final comprehensive report
-    return false;
+  // Generate periodic report every 25 clicks
+  if (globalClickCounter % 25 === 0) {
+    console.log(`\n[REPORT] Generating periodic report after ${globalClickCounter} clicks...`);
+    await generateCSVReport();
   }
-  return true;
+  
+  // Add delay after every 10 clicks
+  if (globalClickCounter % 10 === 0) {
+    console.log(`\n[DELAY] Reached ${globalClickCounter} clicks - Taking 30 second break...`);
+    await delay(30000); // 30 second delay after every 10 clicks
+    console.log(`[DELAY] Break completed, resuming automation...\n`);
+  }
+  
+  return true; // Always continue
 }
 
 /**
- * Checks if the script should continue running based on click counter
- * @returns {boolean} True if script should continue, false if should exit
+ * Check if script should continue (always true now - no auto-exit)
+ * @returns {boolean} Always true
  */
 function shouldContinue() {
-  return globalClickCounter < MAX_CLICKS;
+  return true; // Script runs indefinitely
 }
 
 /**
@@ -1028,78 +1035,84 @@ async function setupPageFingerprint(page) {
 }
 
 /**
- * Enhanced function for parallel tab opening with anonymization
- * Creates multiple browser instances with unique fingerprints to simulate real user engagement
- * Each tab runs independently with realistic user behavior simulation
+ * Enhanced function for single browser window automation
+ * Creates one browser window per click with unique fingerprints
+ * Each window runs independently with realistic user behavior simulation
+ * Optimized for Windows with proper response waiting and delays
  * 
  * @param {string} url - Target URL to visit
- * @param {number} numberOfTabs - Number of tabs to open
- * @param {number} concurrency - Maximum concurrent tabs (default: 2)
- * @returns {Object} Results object with completedTabs and totalDuration
+ * @param {number} numberOfClicks - Number of clicks to perform
+ * @returns {Object} Results object with completedClicks and totalDuration
  */
-async function openEnhancedTabs(url, numberOfTabs, concurrency = 2) {
+async function openEnhancedTabs(url, numberOfClicks) {
   const scriptStart = Date.now();
-  let completedTabs = 0;
-  let activeConnections = 0;
-  const maxConnections = concurrency;
+  let completedClicks = 0;
   
-  console.log(`[INFO] Starting enhanced tab automation for: ${url}`);
-  console.log(`[INFO] Target tabs: ${numberOfTabs}, Max concurrent: ${maxConnections}\n`);
+  console.log(`[INFO] Starting enhanced automation for: ${url}`);
+  console.log(`[INFO] Target clicks: ${numberOfClicks}, One window per click\n`);
 
   /**
-   * Worker function for individual tab processing
-   * Handles browser launch, page setup, navigation, and interaction simulation
-   * Each worker creates an isolated browsing session with unique characteristics
+   * Worker function for individual click processing
+   * Each click gets its own dedicated browser window
+   * Waits for complete response loading with 30-second delay after response
    * 
-   * @param {number} tabIndex - Index of the current tab being processed
-   * @returns {Promise<void>} Promise that resolves when tab processing is complete
+   * @param {number} clickIndex - Index of the current click being processed
+   * @returns {Promise<void>} Promise that resolves when click processing is complete
    */
-  async function createTabWorker(tabIndex) {
-    const tabStart = Date.now();
+  async function createClickWorker(clickIndex) {
+    const clickStart = Date.now();
     let browser = null;
     let page = null;
     
     try {
-      activeConnections++;
-      
       // Generate account details for this session
       const accountDetails = generateAccountDetails();
       
-      console.log(`\n[SESSION] Tab ${tabIndex + 1} - Account: ${accountDetails.name}`);
+      console.log(`\n[SESSION] Click ${clickIndex + 1} - Account: ${accountDetails.name}`);
       console.log(`[EMAIL] ${accountDetails.email}`);
       console.log(`[IDENTITY] User ID: ${accountDetails.userId}, Session: ${accountDetails.sessionId}`);
       
-      // Launch browser with simplified configuration
+      // Launch dedicated browser window for this click
       browser = await puppeteer.launch({
         headless: false,
         defaultViewport: null,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu-sandbox',
+          '--disable-software-rasterizer',
           '--window-size=1920,1080',
           '--no-first-run',
-          '--disable-popup-blocking'
-        ]
+          '--disable-popup-blocking',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--max_old_space_size=4096'
+        ],
+        timeout: 60000,
+        protocolTimeout: 60000
       });
 
       page = await browser.newPage();
       
-      // Simple setup without aggressive fingerprinting
-      console.log(`[DISPLAY] Using standard browser configuration`);
+      console.log(`[WINDOW] New browser window opened for click ${clickIndex + 1}`);
       console.log(`[USER] Account: ${accountDetails.name} (${accountDetails.email})`);
       
       // Navigate to the URL and wait for complete load
       console.log(`[NAVIGATION] Accessing target URL...`);
       await page.goto(url, { 
-        waitUntil: "domcontentloaded", // Simpler wait condition
-        timeout: 30000 
+        waitUntil: "domcontentloaded",
+        timeout: 60000
       });
       
-      console.log(`[SUCCESS] Tab ${tabIndex + 1} loaded successfully!`);
+      console.log(`[SUCCESS] Click ${clickIndex + 1} page loaded successfully!`);
       
       // Wait for page to be fully interactive
       console.log(`[WAITING] Waiting for page elements to load...`);
-      await delay(5000); // Longer wait for page to fully load
+      await delay(10000); // Increased initial wait
       
       // Check page content
       const pageTitle = await page.title();
@@ -1111,14 +1124,14 @@ async function openEnhancedTabs(url, numberOfTabs, concurrency = 2) {
       console.log(`[INTERACTION] Looking for page elements...`);
       
       try {
-        // Wait for the page elements to load
-        await page.waitForSelector('body', { timeout: 10000 });
+        // Wait for the page elements to load with increased timeout
+        await page.waitForSelector('body', { timeout: 20000 });
         
-        // First, let's see what's actually on the page
+        // Analyze page content
         const pageContent = await page.evaluate(() => {
           return {
             title: document.title,
-            bodyText: document.body.innerText.substring(0, 500), // First 500 chars
+            bodyText: document.body.innerText.substring(0, 500),
             hasForm: !!document.querySelector('form'),
             hasInput: !!document.querySelector('input'),
             hasTextarea: !!document.querySelector('textarea'),
@@ -1130,101 +1143,237 @@ async function openEnhancedTabs(url, numberOfTabs, concurrency = 2) {
         
         console.log(`[DEBUG] Page analysis:`, JSON.stringify(pageContent, null, 2));
         
-        // Look for common prompt submission patterns - simplified approach
+        // Look for submission elements with enhanced send button detection
         const submitSelectors = [
           'button[type="submit"]',
           'input[type="submit"]', 
-          'button:contains("Submit")',
           'button:contains("Send")',
+          'button:contains("Submit")',
           'button:contains("Ask")',
-          'button', // Try any button
-          '.submit-btn',
+          'button:contains("Go")',
+          'button:contains("Enter")',
           '.send-btn',
+          '.submit-btn',
+          '#send',
           '#submit',
-          '#send-btn'
+          '#send-btn',
+          'button', // Try any button as fallback
         ];
         
         let submitted = false;
         
-        // Try to find and click submit button
+        // Enhanced send button detection and clicking
         for (const selector of submitSelectors) {
           try {
-            const elements = await page.$$(selector.includes('contains') ? 'button' : selector);
-            for (const element of elements) {
-              if (selector.includes('contains')) {
-                const text = await element.evaluate(el => el.textContent);
-                const searchText = selector.match(/contains\("([^"]+)"\)/)?.[1];
-                if (text && text.toLowerCase().includes(searchText?.toLowerCase() || '')) {
-                  console.log(`[SUBMIT] Found submit button with text: ${text}`);
-                  await element.click();
+            if (selector.includes('contains')) {
+              // Handle text-based selectors
+              const buttons = await page.$$('button');
+              for (const button of buttons) {
+                const text = await button.evaluate(el => el.textContent?.trim().toLowerCase() || '');
+                const searchText = selector.match(/contains\("([^"]+)"\)/)?.[1].toLowerCase();
+                
+                if (text.includes(searchText || '')) {
+                  console.log(`[SEND_BUTTON] Found send button with text: "${text}"`);
+                  
+                  // Scroll button into view if needed
+                  await button.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                  await delay(1000);
+                  
+                  // Click the send button
+                  await button.click();
+                  console.log(`[SEND_BUTTON] ✅ Successfully clicked send button!`);
                   submitted = true;
                   break;
                 }
-              } else {
-                console.log(`[SUBMIT] Found element: ${selector}`);
-                await element.click();
-                submitted = true;
-                break;
+              }
+            } else {
+              // Handle CSS selectors
+              const elements = await page.$$(selector);
+              if (elements.length > 0) {
+                console.log(`[SEND_BUTTON] Found ${elements.length} element(s) matching: ${selector}`);
+                
+                for (const element of elements) {
+                  try {
+                    // Get button text for logging
+                    const buttonText = await element.evaluate(el => el.textContent?.trim() || el.value || 'Unknown');
+                    console.log(`[SEND_BUTTON] Attempting to click button: "${buttonText}"`);
+                    
+                    // Scroll into view
+                    await element.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                    await delay(1000);
+                    
+                    // Click the button
+                    await element.click();
+                    console.log(`[SEND_BUTTON] ✅ Successfully clicked: "${buttonText}"`);
+                    submitted = true;
+                    break;
+                  } catch (clickError) {
+                    console.log(`[SEND_BUTTON] ⚠️ Failed to click element: ${clickError.message}`);
+                    continue;
+                  }
+                }
               }
             }
             if (submitted) break;
           } catch (err) {
-            // Continue trying other selectors
+            console.log(`[SEND_BUTTON] ⚠️ Error with selector ${selector}: ${err.message}`);
+            continue;
           }
         }
         
-        // If no specific submit button found, try any clickable element
+        // Additional fallback: try to find any clickable element that might be a send button
         if (!submitted) {
           try {
-            const clickableElements = await page.$$('button, input[type="button"], [onclick], [role="button"]');
-            if (clickableElements.length > 0) {
-              console.log(`[SUBMIT] Trying first clickable element...`);
-              await clickableElements[0].click();
-              submitted = true;
+            console.log(`[SEND_BUTTON] Primary selectors failed, trying fallback methods...`);
+            
+            // Look for elements with send-related attributes or classes
+            const fallbackSelectors = [
+              '[onclick*="send"]',
+              '[onclick*="submit"]',
+              '[class*="send"]',
+              '[class*="submit"]',
+              '[id*="send"]',
+              '[id*="submit"]',
+              'input[type="button"]',
+              '[role="button"]'
+            ];
+            
+            for (const fallbackSelector of fallbackSelectors) {
+              const fallbackElements = await page.$$(fallbackSelector);
+              if (fallbackElements.length > 0) {
+                console.log(`[SEND_BUTTON] Found ${fallbackElements.length} fallback element(s): ${fallbackSelector}`);
+                
+                for (const element of fallbackElements) {
+                  try {
+                    const elementInfo = await element.evaluate(el => ({
+                      tagName: el.tagName,
+                      className: el.className,
+                      id: el.id,
+                      text: el.textContent?.trim() || el.value || '',
+                      onclick: el.onclick ? 'has onclick' : 'no onclick'
+                    }));
+                    
+                    console.log(`[SEND_BUTTON] Trying fallback element:`, elementInfo);
+                    
+                    await element.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                    await delay(1000);
+                    await element.click();
+                    
+                    console.log(`[SEND_BUTTON] ✅ Successfully clicked fallback element!`);
+                    submitted = true;
+                    break;
+                  } catch (clickError) {
+                    console.log(`[SEND_BUTTON] ⚠️ Fallback click failed: ${clickError.message}`);
+                    continue;
+                  }
+                }
+                if (submitted) break;
+              }
             }
-          } catch (err) {
-            console.log(`[WARNING] Could not find clickable elements`);
+          } catch (fallbackError) {
+            console.log(`[SEND_BUTTON] ⚠️ Fallback method error: ${fallbackError.message}`);
+          }
+        }
+        
+        // Final fallback: try any clickable element
+        if (!submitted) {
+          try {
+            console.log(`[SEND_BUTTON] All methods failed, trying any clickable element...`);
+            const anyClickable = await page.$$('button, input[type="button"], input[type="submit"], [onclick], [role="button"]');
+            
+            if (anyClickable.length > 0) {
+              console.log(`[SEND_BUTTON] Found ${anyClickable.length} potentially clickable elements`);
+              
+              // Try the first few clickable elements
+              for (let i = 0; i < Math.min(3, anyClickable.length); i++) {
+                try {
+                  const element = anyClickable[i];
+                  const elementText = await element.evaluate(el => 
+                    el.textContent?.trim() || el.value || el.tagName || 'Unknown'
+                  );
+                  
+                  console.log(`[SEND_BUTTON] Trying clickable element ${i + 1}: "${elementText}"`);
+                  
+                  await element.evaluate(el => el.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+                  await delay(1000);
+                  await element.click();
+                  
+                  console.log(`[SEND_BUTTON] ✅ Successfully clicked: "${elementText}"`);
+                  submitted = true;
+                  break;
+                } catch (anyClickError) {
+                  console.log(`[SEND_BUTTON] ⚠️ Any-click failed: ${anyClickError.message}`);
+                  continue;
+                }
+              }
+            }
+          } catch (anyClickError) {
+            console.log(`[SEND_BUTTON] ⚠️ Any-click method error: ${anyClickError.message}`);
           }
         }
         
         if (submitted) {
-          console.log(`[GEMINI] Waiting for response after click...`);
+          console.log(`[GEMINI] ✅ Send button clicked successfully! Waiting for response...`);
           
-          // Simple wait for response - just wait and check for content changes
-          await delay(10000); // Wait 10 seconds for response
+          // Wait for initial response (25 seconds)
+          console.log(`[GEMINI] Phase 1: Waiting for response to load (25 seconds)...`);
+          await delay(25000);
           
-          const finalContent = await page.evaluate(() => document.body.innerText);
-          if (finalContent.length > pageContent.bodyText.length + 100) {
-            console.log(`[GEMINI] ✅ Content changed - response likely received!`);
+          // Check for content changes
+          const afterClickContent = await page.evaluate(() => document.body.innerText);
+          if (afterClickContent.length > pageContent.bodyText.length + 100) {
+            console.log(`[GEMINI] ✅ Response detected! Content changed significantly.`);
+            console.log(`[GEMINI] Content length: ${pageContent.bodyText.length} → ${afterClickContent.length} (+${afterClickContent.length - pageContent.bodyText.length} chars)`);
           } else {
-            console.log(`[GEMINI] ⚠️ No significant content change detected`);
+            console.log(`[GEMINI] ⚠️ No significant content change detected yet, continuing to wait...`);
+          }
+          
+          // Additional wait to ensure complete response loading (30 seconds)
+          console.log(`[GEMINI] Phase 2: Ensuring complete response loading (30 seconds)...`);
+          await delay(30000); // 30 second delay after response as requested
+          
+          // Final content check
+          const finalContent = await page.evaluate(() => document.body.innerText);
+          console.log(`[GEMINI] ✅ Complete response loading finished. Total wait: 55 seconds`);
+          console.log(`[GEMINI] Final content length: ${finalContent.length} characters`);
+          
+          // Try to detect if response is still loading
+          const isLoading = await page.evaluate(() => {
+            return document.querySelector('.loading, .spinner, [class*="load"], [class*="wait"]') !== null;
+          });
+          
+          if (isLoading) {
+            console.log(`[GEMINI] ⚠️ Loading indicator still present, waiting additional 15 seconds...`);
+            await delay(15000);
+            console.log(`[GEMINI] ✅ Additional wait completed.`);
           }
           
         } else {
-          console.log(`[WARNING] No submit mechanism found, using fallback delay...`);
-          await delay(15000); // Fallback delay if no interaction possible
+          console.log(`[WARNING] ❌ No send button found! Using extended fallback delay...`);
+          console.log(`[WARNING] Available page elements were not clickable or missing expected buttons`);
+          await delay(40000); // Extended fallback delay
         }
         
       } catch (error) {
         console.log(`[ERROR] Interaction error: ${error.message}`);
-        // Fallback to standard delay
-        await delay(15000);
+        // Extended fallback delay
+        await delay(40000);
       }
       
-      console.log(`[INTERACTION] Page interaction completed for tab ${tabIndex + 1}`);
+      console.log(`[INTERACTION] Page interaction completed for click ${clickIndex + 1}`);
       
-      const tabEnd = Date.now();
-      const tabDuration = ((tabEnd - tabStart) / 1000).toFixed(2);
-      const interactionDelay = tabEnd - tabStart; // Total time from start to finish
-      const sessionStartTime = new Date(tabStart).toISOString();
-      const sessionEndTime = new Date(tabEnd).toISOString();
+      const clickEnd = Date.now();
+      const clickDuration = ((clickEnd - clickStart) / 1000).toFixed(2);
+      const interactionDelay = clickEnd - clickStart;
+      const sessionStartTime = new Date(clickStart).toISOString();
+      const sessionEndTime = new Date(clickEnd).toISOString();
       
-      console.log(`[COMPLETE] Tab ${tabIndex + 1} completed in ${tabDuration}s`);
-      console.log(`[TRACKING] Engagement recorded for ${accountDetails.name}\n`);
+      console.log(`[COMPLETE] Click ${clickIndex + 1} completed in ${clickDuration}s`);
+      console.log(`[TRACKING] Engagement recorded for ${accountDetails.name}`);
       
-      // Prepare simplified click data for CSV report
+      // Prepare click data for CSV report
       const clickData = {
-        tabNumber: tabIndex + 1,
+        tabNumber: clickIndex + 1,
         username: accountDetails.name,
         email: accountDetails.email,
         userId: accountDetails.userId,
@@ -1232,72 +1381,61 @@ async function openEnhancedTabs(url, numberOfTabs, concurrency = 2) {
         url: url,
         sessionStartTime: sessionStartTime,
         sessionEndTime: sessionEndTime,
-        timeTaken: parseFloat(tabDuration),
+        timeTaken: parseFloat(clickDuration),
         interactionDuration: (interactionDelay / 1000).toFixed(2)
       };
       
-      // Increment click counter and check if we should continue
-      if (!(await incrementClickCounter(clickData))) {
-        // Maximum clicks reached, force early termination
-        throw new Error('MAX_CLICKS_REACHED');
-      }
+      // Increment click counter (always returns true now)
+      await incrementClickCounter(clickData);
       
-      completedTabs++;
+      completedClicks++;
+      
+      // Random delay after each click to prevent "check internet connection" errors
+      const randomDelay = Math.floor(Math.random() * (120000 - 30000 + 1)) + 30000; // 30-120 seconds
+      const delayMinutes = (randomDelay / 60000).toFixed(1);
+      console.log(`[ANTI_RATE_LIMIT] Random delay: ${delayMinutes} minutes (${randomDelay / 1000}s) to prevent rate limiting...`);
+      console.log(`[ANTI_RATE_LIMIT] This prevents Gemini "check internet connection" errors`);
+      
+      await delay(randomDelay);
+      console.log(`[ANTI_RATE_LIMIT] ✅ Random delay completed, ready for next action`);
+      
+      // Close browser window after successful completion and delay
+      console.log(`[CLEANUP] Closing browser window for click ${clickIndex + 1}\n`);
       
     } catch (error) {
-      if (error.message === 'MAX_CLICKS_REACHED') {
-        console.log(`[SYSTEM] Tab ${tabIndex + 1} terminated due to click limit reached`);
-      } else {
-        console.error(`[ERROR] Tab ${tabIndex + 1} failed: ${error.message}`);
-      }
+      console.error(`[ERROR] Click ${clickIndex + 1} failed: ${error.message}`);
     } finally {
-      activeConnections--;
       if (page) await page.close().catch(() => {});
       if (browser) await browser.close().catch(() => {});
     }
   }
 
-  // Create all workers with concurrency control
-  const workers = [];
-  for (let i = 0; i < numberOfTabs; i++) {
-    // Check if we should continue before creating new workers
-    if (!shouldContinue()) {
-      console.log(`[SYSTEM] Stopping tab creation - click limit reached`);
-      break;
-    }
+  // Process clicks one by one (each gets its own window)
+  for (let i = 0; i < numberOfClicks; i++) {
+    console.log(`\n[PROCESS] Starting click ${i + 1}/${numberOfClicks}`);
+    await createClickWorker(i);
     
-    workers.push(createTabWorker(i));
-    
-    // Control concurrency
-    if ((i + 1) % maxConnections === 0 || i === numberOfTabs - 1) {
-      await Promise.allSettled(workers.splice(0));
-      
-      // Check again after batch completion
-      if (!shouldContinue()) {
-        console.log(`[SYSTEM] Stopping automation - click limit reached`);
-        break;
-      }
-      
-      await delay(Math.random() * 2000 + 1000); // Random delay between batches
-    }
+    // Note: Random delay is handled inside createClickWorker after each successful click
+    // No additional delay needed here as it's already built into the click process
   }
 
   const scriptEnd = Date.now();
   const totalDuration = ((scriptEnd - scriptStart) / 1000).toFixed(2);
   
-  console.log(`\n[SUMMARY] All tabs completed for ${url}!`);
-  console.log(`[METRICS] Success rate: ${completedTabs}/${numberOfTabs} (${((completedTabs/numberOfTabs)*100).toFixed(1)}%)`);
+  console.log(`\n[SUMMARY] Batch completed for ${url}!`);
+  console.log(`[METRICS] Success rate: ${completedClicks}/${numberOfClicks} (${((completedClicks/numberOfClicks)*100).toFixed(1)}%)`);
   console.log(`[TIMING] Total runtime: ${totalDuration} seconds (~${(totalDuration / 60).toFixed(2)} minutes)\n`);
   
-  return { completedTabs, totalDuration };
+  return { completedClicks, totalDuration };
 }
 
 /**
- * Main execution function for running enhanced automation across multiple URLs
- * Orchestrates the entire automation process including URL processing, concurrency management,
- * and comprehensive reporting of engagement metrics
+ * Main execution function for continuous automation with individual browser windows
+ * Orchestrates the entire automation process with 5 clicks per batch
+ * Each click gets its own dedicated browser window for maximum isolation
+ * Script runs continuously without auto-exit
  * 
- * @returns {Promise<void>} Promise that resolves when all automation is complete
+ * @returns {Promise<void>} Promise that resolves when manually stopped
  */
 async function runEnhancedAutomation() {
   const urls = [
@@ -1305,107 +1443,58 @@ async function runEnhancedAutomation() {
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=13", 
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=14",
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=16",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=15"
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=15",
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=17",
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=16",
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=15",
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=14",
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=13"
   ];
   
-  const numberOfTabsPerUrl = 5; // Increased tabs per URL for faster processing
-  const concurrentTabsPerUrl = 1; // Max 2 tabs simultaneously per URL (faster parallel processing)
+  const clicksPerBatch = 10; // 10 clicks per batch (one per URL)
   
-  console.log("[SYSTEM] Starting Enhanced Multi-URL Tab Automation");
-  console.log("=".repeat(60));
+  console.log("[SYSTEM] Starting Continuous Individual Window Automation");
+  console.log("=".repeat(70));
   console.log(`[CONFIG] URLs to process: ${urls.length}`);
-  console.log(`[CONFIG] Tabs per URL: ${numberOfTabsPerUrl}`);
-  console.log(`[CONFIG] Concurrent tabs per URL: ${concurrentTabsPerUrl}`);
-  console.log(`[CONFIG] Max total concurrent tabs: ${urls.length * concurrentTabsPerUrl}`);
-  console.log(`[CONFIG] Total tabs per cycle: ${urls.length * numberOfTabsPerUrl}`);
-  console.log(`[CONFIG] Auto-exit after: ${MAX_CLICKS} clicks`);
-  console.log(`[CONFIG] Current click count: ${globalClickCounter}/${MAX_CLICKS}`);
-  console.log(`[PERFORMANCE] ⚡ High-speed parallel processing enabled!`);
-  console.log("=".repeat(60) + "\n");
+  console.log(`[CONFIG] Clicks per batch: ${clicksPerBatch}`);
+  console.log(`[CONFIG] Windows: 1 dedicated window per click`);
+  console.log(`[CONFIG] Delay after every 10 clicks: 30 seconds`);
+  console.log(`[CONFIG] Random delay after each click: 30-120 seconds (prevents rate limiting)`);
+  console.log(`[CONFIG] Response wait time: 25s + 30s = 55s total`);
+  console.log(`[CONFIG] Script runs continuously (no auto-exit)`);
+  console.log(`[PERFORMANCE] 🖥️ Windows optimized - One window per click!`);
+  console.log(`[TIMING] ⏱️ Extended delays for complete response loading + anti-rate-limit`);
+  console.log(`[ANTI_RATE_LIMIT] 🛡️ Random delays prevent Gemini "check internet connection" errors`);
+  console.log("=".repeat(70) + "\n");
   
   const globalStart = Date.now();
+  let batchCount = 1;
   
-  // Continue cycling through URLs until we reach MAX_CLICKS
-  let cycleCount = 1;
-  
-  while (shouldContinue()) {
-    console.log(`\n[CYCLE] Starting cycle ${cycleCount} - Target: ${MAX_CLICKS} clicks, Current: ${globalClickCounter}`);
+  // Continue running indefinitely until manually stopped
+  while (true) {
+    console.log(`\n[BATCH] Starting batch ${batchCount} - Current total clicks: ${globalClickCounter}`);
     
-    // Run all URLs with click limit checking
-    const urlPromises = urls.map(async (url, index) => {
-      // Check if we should continue before processing each URL
-      if (!shouldContinue()) {
-        console.log(`\n[SYSTEM] Skipping URL ${index + 1}/${urls.length} - click limit reached`);
-        return { completedTabs: 0, totalDuration: 0, skipped: true };
-      }
-      
-      console.log(`\n[PROCESS] Starting automation for URL ${index + 1}/${urls.length} (Cycle ${cycleCount})`);
-      return await openEnhancedTabs(url, numberOfTabsPerUrl, concurrentTabsPerUrl);
-    });
+      // Process each URL in the batch (5 clicks total per batch)
+      for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
+        const url = urls[urlIndex];
+        
+        console.log(`\n[PROCESS] Batch ${batchCount} - Processing URL ${urlIndex + 1}/${urls.length}`);
+        console.log(`[URL] ${url}`);
+        
+        // Process 1 click for this URL (each click gets its own window)
+        // Random delay is automatically handled inside openEnhancedTabs after each click
+        await openEnhancedTabs(url, 1);
+        
+        // Note: No additional delay needed here as random delay (30-120s) is built into each click
+      }    console.log(`\n[BATCH_COMPLETE] Batch ${batchCount} finished - Total clicks so far: ${globalClickCounter}`);
+    console.log(`[RATE_LIMITING] Each click includes 30-120 second random delay to prevent Gemini rate limits`);
+    console.log(`[BATCH_INFO] Next 30-second break will occur after ${10 - (globalClickCounter % 10)} more clicks`);
     
-    const results = await Promise.allSettled(urlPromises);
+    batchCount++;
     
-    // Check if we completed this cycle or hit the limit
-    let cycleCompleted = 0;
-    results.forEach((result) => {
-      if (result.status === 'fulfilled' && !result.value.skipped) {
-        cycleCompleted += result.value.completedTabs || 0;
-      }
-    });
-    
-    console.log(`\n[CYCLE_COMPLETE] Cycle ${cycleCount} finished - Added ${cycleCompleted} clicks. Total: ${globalClickCounter}/${MAX_CLICKS}`);
-    
-    if (!shouldContinue()) {
-      console.log(`[SYSTEM] Click limit reached! Stopping after cycle ${cycleCount}.`);
-      break;
-    }
-    
-    cycleCount++;
-    
-    // Small delay between cycles
-    if (shouldContinue()) {
-      console.log(`[CYCLE] Preparing for cycle ${cycleCount}...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  }
-  
-  const globalEnd = Date.now();
-  const globalDuration = ((globalEnd - globalStart) / 1000).toFixed(2);
-  
-  // Summary report
-  console.log("\n" + "=".repeat(60));
-  console.log("[REPORT] FINAL AUTOMATION REPORT");
-  console.log("=".repeat(60));
-  
-  console.log(`[CYCLES] Total cycles completed: ${cycleCount}`);
-  console.log(`[CLICKS] Total successful clicks: ${globalClickCounter}/${MAX_CLICKS}`);
-  console.log(`[SUCCESS_RATE] Click completion: ${((globalClickCounter/MAX_CLICKS)*100).toFixed(1)}%`);
-  
-  console.log("-".repeat(60));
-  console.log(`[TIMING] Total Runtime: ${globalDuration} seconds (~${(globalDuration / 60).toFixed(2)} minutes)`);
-  console.log(`[METRICS] Average time per click: ${globalClickCounter > 0 ? (globalDuration / globalClickCounter).toFixed(2) : '0.00'}s`);
-  console.log(`[THROUGHPUT] Clicks per minute: ${((globalClickCounter / globalDuration) * 60).toFixed(2)}`);
-  
-  // Check if we reached the click limit
-  if (globalClickCounter >= MAX_CLICKS) {
-    console.log(`\n[SUCCESS] ✅ Target achieved! Completed ${MAX_CLICKS} clicks successfully.`);
-  } else {
-    console.log(`\n[PARTIAL] ⚠️ Stopped early with ${globalClickCounter} clicks (${MAX_CLICKS - globalClickCounter} remaining)`);
-  }
-  
-  console.log("=".repeat(60));
-  
-  // Generate CSV report with all click data
-  if (clickReportData.length > 0) {
-    console.log("\n[CSV_GENERATION] Generating detailed engagement report...");
-    try {
-      const csvPath = await generateCSVReport();
-      console.log(`[CSV_SUCCESS] Report saved successfully to: ${path.basename(csvPath)}`);
-    } catch (error) {
-      console.error(`[CSV_ERROR] Failed to generate CSV report: ${error.message}`);
-    }
-  } else {
-    console.log("\n[CSV_INFO] No successful clicks to report");
+    // Minimal delay before next batch since random delays are built into each click
+    console.log(`[BATCH] Preparing for batch ${batchCount}...`);
+    await delay(2000); // Reduced since we have random delays after each click
   }
 }
 
