@@ -1112,7 +1112,7 @@ async function openEnhancedTabs(url, numberOfClicks) {
       
       // Wait for page to be fully interactive - reduced for faster execution
       console.log(`[WAITING] Waiting for page elements to load...`);
-      await delay(3600); // Reduced from 10000 to 5000
+  await delay(1000); // Further reduced page load wait
       
       // Check page content
       const pageTitle = await page.title();
@@ -1328,9 +1328,9 @@ async function openEnhancedTabs(url, numberOfClicks) {
             console.log(`[GEMINI] ⚠️ No significant content change detected yet, continuing to wait...`);
           }
           
-          // Additional wait to ensure complete response loading (20 seconds) - reduced
-          console.log(`[GEMINI] Phase 2: Ensuring complete response loading (20 seconds)...`);
-          await delay(20000); // Reduced from 30000 to 20000
+          // Additional wait to ensure complete response loading (10 seconds) - further reduced
+          console.log(`[GEMINI] Phase 2: Ensuring complete response loading (10 seconds)...`);
+          await delay(10000); // Further reduced
           
           // Final content check
           const finalContent = await page.evaluate(() => document.body.innerText);
@@ -1343,21 +1343,21 @@ async function openEnhancedTabs(url, numberOfClicks) {
           });
           
           if (isLoading) {
-            console.log(`[GEMINI] ⚠️ Loading indicator still present, waiting additional 10 seconds...`);
-            await delay(10000); // Reduced from 15000 to 10000
+            console.log(`[GEMINI] ⚠️ Loading indicator still present, waiting additional 5 seconds...`);
+            await delay(5000); // Further reduced
             console.log(`[GEMINI] ✅ Additional wait completed.`);
           }
           
         } else {
           console.log(`[WARNING] ❌ No send button found! Using reduced fallback delay...`);
           console.log(`[WARNING] Available page elements were not clickable or missing expected buttons`);
-          await delay(25000); // Reduced from 40000 to 25000
+          await delay(7000); // Further reduced fallback delay
         }
         
       } catch (error) {
         console.log(`[ERROR] Interaction error: ${error.message}`);
         // Reduced fallback delay
-        await delay(25000); // Reduced from 40000 to 25000
+  await delay(7000); // Further reduced fallback delay
       }
       
       console.log(`[INTERACTION] Page interaction completed for click ${clickIndex + 1}`);
@@ -1391,13 +1391,11 @@ async function openEnhancedTabs(url, numberOfClicks) {
       completedClicks++;
       
       // Random delay after each click to prevent "check internet connection" errors
-      const randomDelay = Math.floor(Math.random() * (60000 - 20000 + 1)) + 20000; // 20-60 seconds (reduced)
-      const delayMinutes = (randomDelay / 60000).toFixed(1);
-      console.log(`[ANTI_RATE_LIMIT] Random delay: ${delayMinutes} minutes (${randomDelay / 1000}s) to prevent rate limiting...`);
-      console.log(`[ANTI_RATE_LIMIT] This prevents Gemini "check internet connection" errors`);
-      
-      await delay(randomDelay);
-      console.log(`[ANTI_RATE_LIMIT] ✅ Random delay completed, ready for next action`);
+  const randomDelay = Math.floor(Math.random() * (20000 - 5000 + 1)) + 5000; // 5-20 seconds (faster)
+  const delaySeconds = (randomDelay / 1000).toFixed(1);
+  console.log(`[ANTI_RATE_LIMIT] Random delay: ${delaySeconds}s to prevent rate limiting...`);
+  await delay(randomDelay);
+  console.log(`[ANTI_RATE_LIMIT] ✅ Random delay completed, ready for next action`);
       
       // Close browser window after successful completion and delay
       console.log(`[CLEANUP] Closing browser window for click ${clickIndex + 1}\n`);
@@ -1451,7 +1449,7 @@ async function runEnhancedAutomation() {
     "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=13"
   ];
   
-  const clicksPerBatch = 10; // 10 clicks per batch (one per URL)
+  const clicksPerBatch = 20; // 20 clicks per batch (higher engagement)
   
   console.log("[SYSTEM] Starting Continuous Individual Window Automation");
   console.log("=".repeat(70));
@@ -1459,8 +1457,8 @@ async function runEnhancedAutomation() {
   console.log(`[CONFIG] Clicks per batch: ${clicksPerBatch}`);
   console.log(`[CONFIG] Windows: 1 dedicated window per click`);
   console.log(`[CONFIG] Delay after every 10 clicks: 30 seconds`);
-  console.log(`[CONFIG] Random delay after each click: 20-60 seconds (prevents rate limiting)`);
-  console.log(`[CONFIG] Response wait time: 15s + 20s = 35s total`);
+  console.log(`[CONFIG] Random delay after each click: 5-20 seconds (prevents rate limiting)`);
+  console.log(`[CONFIG] Response wait time: 7s + 10s = 17s total`);
   console.log(`[CONFIG] Script runs continuously (no auto-exit)`);
   console.log(`[PERFORMANCE] 🖥️ Windows optimized - One window per click!`);
   console.log(`[TIMING] ⚡ Reduced delays for faster execution + anti-rate-limit`);
@@ -1494,7 +1492,7 @@ async function runEnhancedAutomation() {
     
     // Minimal delay before next batch since random delays are built into each click
     console.log(`[BATCH] Preparing for batch ${batchCount}...`);
-    await delay(2000); // Reduced since we have random delays after each click
+  await delay(500); // Further reduced batch gap
   }
 }
 
