@@ -1441,12 +1441,7 @@ async function runEnhancedAutomation() {
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=13", 
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=14",
     "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=16",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=15",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=17",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=16",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=15",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=14",
-    "https://aiskillshouse.com/student/qr-mediator.html?uid=4620&promptId=13"
+    "https://aiskillshouse.com/student/qr-mediator.html?uid=50&promptId=15"
   ];
   
   const clicksPerBatch = 20; // 20 clicks per batch (higher engagement)
