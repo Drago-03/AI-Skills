@@ -130,6 +130,9 @@ $RECYCLE.BIN/
 !data.csv
 !engagement-report-*.csv
 
+# Keep comprehensive automation log file
+!comprehensive-automation-log.json
+
 # Keep important project files
 !package.json
 !README.md
