@@ -20,6 +20,19 @@ const path = require("path");
 let globalClickCounter = 0;
 
 /**
+ * Virtual Machine counter to track when to rotate system identity
+ * Changes every 5 clicks to simulate new virtual machines
+ * @type {number}
+ */
+let vmClickCounter = 0;
+
+/**
+ * Current Virtual Machine ID - increments every 5 clicks
+ * @type {number}
+ */
+let currentVmId = 1;
+
+/**
  * Array to store detailed information about each successful click
  * Will be used to generate CSV report periodically
  * @type {Array<Object>}
@@ -36,17 +49,212 @@ let clickReportData = [];
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 /**
+ * Generate random MAC address for virtual machine simulation
+ * Creates realistic MAC addresses with proper vendor prefixes
+ * @returns {string} Generated MAC address in XX:XX:XX:XX:XX:XX format
+ */
+function generateMacAddress() {
+  // Common vendor prefixes for realistic MAC addresses
+  const vendorPrefixes = [
+    '00:50:56', // VMware
+    '08:00:27', // VirtualBox
+    '52:54:00', // QEMU
+    '00:15:5d', // Hyper-V
+    '00:1c:42', // Parallels
+    '00:0c:29', // VMware ESX
+    '00:21:f6', // Cisco
+    '00:23:ae', // Intel
+    '3c:97:0e', // Wistron
+    '54:ee:75', // Texas Instruments
+    '70:85:c2', // Rivet Networks
+    '80:e6:50', // Asrock
+    '90:2b:34'  // Sagemcom
+  ];
+  
+  const prefix = vendorPrefixes[Math.floor(Math.random() * vendorPrefixes.length)];
+  const suffix = Array.from({length: 3}, () => 
+    Math.floor(Math.random() * 256).toString(16).padStart(2, '0')
+  ).join(':');
+  
+  return `${prefix}:${suffix}`.toLowerCase();
+}
+
+/**
+ * Generate comprehensive system hardware profile for virtual machine
+ * Creates realistic hardware specifications that change per VM
+ * @returns {Object} Hardware profile with CPU, RAM, GPU, storage, etc.
+ */
+function generateHardwareProfile() {
+  // CPU configurations
+  const cpuBrands = ['Intel', 'AMD'];
+  const intelCpus = [
+    'Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz',
+    'Intel(R) Core(TM) i5-9600K CPU @ 3.70GHz', 
+    'Intel(R) Core(TM) i7-8700K CPU @ 3.70GHz',
+    'Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz',
+    'Intel(R) Core(TM) i7-9700F CPU @ 3.00GHz',
+    'Intel(R) Core(TM) i5-8400 CPU @ 2.80GHz'
+  ];
+  const amdCpus = [
+    'AMD Ryzen 7 3700X 8-Core Processor',
+    'AMD Ryzen 5 3600 6-Core Processor',
+    'AMD Ryzen 9 3900X 12-Core Processor',
+    'AMD Ryzen 5 2600 Six-Core Processor',
+    'AMD Ryzen 7 2700X Eight-Core Processor'
+  ];
+  
+  const cpuBrand = cpuBrands[Math.floor(Math.random() * cpuBrands.length)];
+  const cpu = cpuBrand === 'Intel' ? 
+    intelCpus[Math.floor(Math.random() * intelCpus.length)] :
+    amdCpus[Math.floor(Math.random() * amdCpus.length)];
+    
+  // RAM configurations (in GB)
+  const ramSizes = [8, 16, 32, 64];
+  const ram = ramSizes[Math.floor(Math.random() * ramSizes.length)];
+  
+  // GPU configurations
+  const gpuBrands = ['NVIDIA', 'AMD', 'Intel'];
+  const nvidiaGpus = [
+    'NVIDIA GeForce RTX 3070',
+    'NVIDIA GeForce RTX 2060',
+    'NVIDIA GeForce GTX 1660 Ti',
+    'NVIDIA GeForce RTX 3060',
+    'NVIDIA GeForce GTX 1650'
+  ];
+  const amdGpus = [
+    'AMD Radeon RX 580',
+    'AMD Radeon RX 5500 XT', 
+    'AMD Radeon RX 6700 XT',
+    'AMD Radeon RX 5600 XT'
+  ];
+  const intelGpus = [
+    'Intel(R) UHD Graphics 630',
+    'Intel(R) HD Graphics 530',
+    'Intel(R) Iris(R) Plus Graphics'
+  ];
+  
+  const gpuBrand = gpuBrands[Math.floor(Math.random() * gpuBrands.length)];
+  let gpu;
+  if (gpuBrand === 'NVIDIA') {
+    gpu = nvidiaGpus[Math.floor(Math.random() * nvidiaGpus.length)];
+  } else if (gpuBrand === 'AMD') {
+    gpu = amdGpus[Math.floor(Math.random() * amdGpus.length)];
+  } else {
+    gpu = intelGpus[Math.floor(Math.random() * intelGpus.length)];
+  }
+  
+  // Storage configurations
+  const storageTypes = ['SSD', 'HDD', 'NVMe'];
+  const storageSizes = [256, 512, 1000, 2000]; // in GB
+  const storageType = storageTypes[Math.floor(Math.random() * storageTypes.length)];
+  const storageSize = storageSizes[Math.floor(Math.random() * storageSizes.length)];
+  
+  // Motherboard brands
+  const motherboardBrands = ['ASUS', 'MSI', 'Gigabyte', 'ASRock', 'EVGA'];
+  const motherboard = motherboardBrands[Math.floor(Math.random() * motherboardBrands.length)];
+  
+  return {
+    cpu,
+    cpuBrand,
+    ram: `${ram}GB DDR4`,
+    gpu,
+    gpuBrand,
+    storage: `${storageSize}GB ${storageType}`,
+    motherboard: `${motherboard} Motherboard`,
+    cores: cpuBrand === 'Intel' ? Math.floor(Math.random() * 8) + 4 : Math.floor(Math.random() * 12) + 6,
+    threads: (cpuBrand === 'Intel' ? Math.floor(Math.random() * 8) + 4 : Math.floor(Math.random() * 12) + 6) * 2
+  };
+}
+
+/**
+ * Generate virtual machine system profile with complete identity
+ * Creates comprehensive VM identity including hardware, network, and system details
+ * @returns {Object} Complete VM profile with all system characteristics
+ */
+function generateVmSystemProfile() {
+  const macAddress = generateMacAddress();
+  const hardware = generateHardwareProfile();
+  const vmId = `VM-${Date.now().toString().slice(-8)}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+  
+  // Operating System variations
+  const osList = [
+    'Windows 10 Pro (Build 19044)',
+    'Windows 11 Pro (Build 22621)',
+    'Windows 10 Home (Build 19043)',
+    'Windows 11 Home (Build 22000)',
+    'Windows 10 Enterprise (Build 19042)'
+  ];
+  const os = osList[Math.floor(Math.random() * osList.length)];
+  
+  // Browser versions
+  const chromeVersions = [
+    '120.0.6099.129',
+    '119.0.6045.199', 
+    '121.0.6167.85',
+    '118.0.5993.117',
+    '122.0.6261.57'
+  ];
+  const chromeVersion = chromeVersions[Math.floor(Math.random() * chromeVersions.length)];
+  
+  // Network adapter names
+  const networkAdapters = [
+    'Intel(R) Ethernet Controller',
+    'Realtek PCIe Ethernet Controller', 
+    'Intel(R) Wireless-AC 9260',
+    'Qualcomm Atheros AR9485',
+    'Broadcom NetXtreme Gigabit Ethernet'
+  ];
+  const networkAdapter = networkAdapters[Math.floor(Math.random() * networkAdapters.length)];
+  
+  // BIOS information
+  const biosManufacturers = ['American Megatrends', 'Phoenix Technologies', 'Insyde Software'];
+  const biosManufacturer = biosManufacturers[Math.floor(Math.random() * biosManufacturers.length)];
+  const biosVersion = `${Math.floor(Math.random() * 9) + 1}.${Math.floor(Math.random() * 9)}.${Math.floor(Math.random() * 99)}`;
+  
+  return {
+    vmId,
+    macAddress,
+    hardware,
+    os,
+    chromeVersion,
+    networkAdapter,
+    bios: {
+      manufacturer: biosManufacturer,
+      version: biosVersion,
+      releaseDate: new Date(Date.now() - Math.random() * 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    },
+    systemInfo: {
+      computerName: `PC-${Math.random().toString(36).substr(2, 8).toUpperCase()}`,
+      domain: Math.random() > 0.5 ? 'WORKGROUP' : 'DOMAIN.LOCAL',
+      architecture: Math.random() > 0.2 ? 'x64' : 'x86',
+      processorId: Math.random().toString(36).substr(2, 16).toUpperCase()
+    },
+    timestamp: new Date().toISOString()
+  };
+}
+
+/**
  * Increments the global click counter and generates periodic reports
+ * Manages virtual machine rotation every 5 clicks for complete system identity changes
  * @param {Object} clickData - Detailed information about the click
  * @returns {Promise<boolean>} Always returns true (no auto-exit)
  */
 async function incrementClickCounter(clickData = {}) {
   globalClickCounter++;
+  vmClickCounter++;
+  
+  // Check if we need to rotate virtual machine (every 5 clicks)
+  if (vmClickCounter >= 5) {
+    currentVmId++;
+    vmClickCounter = 0;
+    console.log(`\n[VM_ROTATION] 🔄 Rotating to new Virtual Machine - VM ID: ${currentVmId}`);
+    console.log(`[VM_INFO] New system identity will be generated for next click`);
+  }
   
   // Add the click record to our report data and update CSV
   await addClickRecord(clickData);
   
-  console.log(`[CLICK_COUNTER] Total clicks: ${globalClickCounter}`);
+  console.log(`[CLICK_COUNTER] Total clicks: ${globalClickCounter} | VM clicks: ${vmClickCounter}/5 | Current VM: ${currentVmId}`);
   
   // Generate periodic report every 25 clicks
   if (globalClickCounter % 25 === 0) {
@@ -74,11 +282,14 @@ function shouldContinue() {
 
 /**
  * Adds a successful click record to the report data and immediately updates CSV file
+ * Also writes comprehensive log entry to main log file
  * @param {Object} clickData - Data about the successful click
  */
 async function addClickRecord(clickData) {
   const recordWithMeta = {
     clickNumber: globalClickCounter,
+    vmId: currentVmId,
+    vmClickNumber: vmClickCounter,
     timestamp: new Date().toISOString(),
     ...clickData
   };
@@ -92,6 +303,112 @@ async function addClickRecord(clickData) {
   } catch (error) {
     console.error(`[CSV_ERROR] Failed to update CSV: ${error.message}`);
   }
+  
+  // Write comprehensive log entry
+  try {
+    await writeComprehensiveLog(recordWithMeta);
+    console.log(`[LOG_UPDATE] ✅ Comprehensive log updated for click ${globalClickCounter}`);
+  } catch (error) {
+    console.error(`[LOG_ERROR] Failed to update main log: ${error.message}`);
+  }
+}
+
+/**
+ * Writes comprehensive log entry to main log file with all system and session details
+ * Creates the log file if it doesn't exist with proper headers
+ * @param {Object} record - Complete click record with all metadata
+ */
+async function writeComprehensiveLog(record) {
+  const logPath = path.join(__dirname, 'comprehensive-automation-log.json');
+  
+  // Create log entry with comprehensive information
+  const logEntry = {
+    timestamp: record.timestamp,
+    clickDetails: {
+      clickNumber: record.clickNumber,
+      vmId: record.vmId,
+      vmClickNumber: record.vmClickNumber,
+      url: record.url,
+      sessionStartTime: record.sessionStartTime,
+      sessionEndTime: record.sessionEndTime,
+      timeTaken: record.timeTaken,
+      interactionDuration: record.interactionDuration
+    },
+    userIdentity: {
+      username: record.username,
+      email: record.email,
+      userId: record.userId,
+      sessionId: record.sessionId
+    },
+    systemIdentity: record.vmProfile ? {
+      vmId: record.vmProfile.vmId,
+      macAddress: record.vmProfile.macAddress,
+      operatingSystem: record.vmProfile.os,
+      chromeVersion: record.vmProfile.chromeVersion,
+      networkAdapter: record.vmProfile.networkAdapter,
+      computerName: record.vmProfile.systemInfo.computerName,
+      architecture: record.vmProfile.systemInfo.architecture,
+      processorId: record.vmProfile.systemInfo.processorId
+    } : null,
+    hardwareProfile: record.vmProfile ? {
+      cpu: record.vmProfile.hardware.cpu,
+      ram: record.vmProfile.hardware.ram,
+      gpu: record.vmProfile.hardware.gpu,
+      storage: record.vmProfile.hardware.storage,
+      motherboard: record.vmProfile.hardware.motherboard,
+      cores: record.vmProfile.hardware.cores,
+      threads: record.vmProfile.hardware.threads
+    } : null,
+    networkIdentity: record.ipData ? {
+      ipAddress: record.ipData.ip + Math.floor(Math.random() * 255),
+      isp: record.ipData.isp,
+      city: record.ipData.city,
+      state: record.ipData.state,
+      pincode: record.ipData.pincode,
+      area: record.ipData.area,
+      coordinates: record.ipData.coordinates
+    } : null,
+    fingerprint: record.fingerprint ? {
+      userAgent: record.fingerprint.userAgent,
+      resolution: record.fingerprint.resolution,
+      timezone: record.fingerprint.timezone,
+      language: record.fingerprint.language,
+      locationTier: record.fingerprint.locationTier
+    } : null,
+    adminInfo: {
+      tokenId: `token_${Date.now()}_${Math.random().toString(36).substr(2, 8)}`,
+      adminId: `admin_${Math.floor(Math.random() * 9000) + 1000}`,
+      sessionToken: record.sessionId || Math.random().toString(36).substr(2, 16),
+      permissions: ['read', 'write', 'execute'],
+      accessLevel: Math.random() > 0.5 ? 'elevated' : 'standard'
+    },
+    technicalDetails: {
+      browserExecutionTime: record.timeTaken,
+      pageLoadTime: record.interactionDuration,
+      userAgentFingerprint: record.fingerprint?.userAgent?.substring(0, 50) || 'Unknown',
+      connectionType: record.connectionInfo?.type || 'Unknown',
+      effectiveType: record.connectionInfo?.effectiveType || '4g',
+      downlink: record.connectionInfo?.downlink || 100,
+      rtt: record.connectionInfo?.rtt || 50
+    }
+  };
+  
+  // Read existing log file or create new one
+  let logData = [];
+  if (fs.existsSync(logPath)) {
+    try {
+      const existingData = await fs.promises.readFile(logPath, 'utf8');
+      logData = JSON.parse(existingData);
+    } catch (error) {
+      console.log(`[LOG_INFO] Creating new log file: ${error.message}`);
+    }
+  }
+  
+  // Add new entry
+  logData.push(logEntry);
+  
+  // Write updated log file with pretty formatting
+  await fs.promises.writeFile(logPath, JSON.stringify(logData, null, 2), 'utf8');
 }
 
 /**
@@ -105,9 +422,11 @@ async function updateCSVFile(record) {
   // Check if file exists to determine if we need headers
   const fileExists = fs.existsSync(csvPath);
   
-  // Simplified CSV Headers
+  // Enhanced CSV Headers with VM and system information
   const headers = [
     'Click Number',
+    'VM ID',
+    'VM Click Number',
     'Timestamp',
     'Tab Number', 
     'Username',
@@ -118,7 +437,22 @@ async function updateCSVFile(record) {
     'Session Start Time',
     'Session End Time',
     'Time Taken (seconds)',
-    'Interaction Duration (seconds)'
+    'Interaction Duration (seconds)',
+    'MAC Address',
+    'Operating System',
+    'CPU',
+    'RAM',
+    'GPU',
+    'Storage',
+    'Chrome Version',
+    'Network Adapter',
+    'Computer Name',
+    'IP Address',
+    'ISP',
+    'City',
+    'State',
+    'Token ID',
+    'Admin ID'
   ];
   
   let csvContent = '';
@@ -128,9 +462,11 @@ async function updateCSVFile(record) {
     csvContent = headers.join(',') + '\n';
   }
   
-  // Format the simplified record row
+  // Format the enhanced record row
   const row = [
     record.clickNumber,
+    record.vmId || currentVmId,
+    record.vmClickNumber || vmClickCounter,
     `"${record.timestamp}"`,
     record.tabNumber,
     `"${record.username}"`,
@@ -141,7 +477,22 @@ async function updateCSVFile(record) {
     `"${record.sessionStartTime}"`,
     `"${record.sessionEndTime}"`,
     record.timeTaken,
-    record.interactionDuration
+    record.interactionDuration,
+    `"${record.vmProfile?.macAddress || 'N/A'}"`,
+    `"${record.vmProfile?.os || 'N/A'}"`,
+    `"${record.vmProfile?.hardware?.cpu || 'N/A'}"`,
+    `"${record.vmProfile?.hardware?.ram || 'N/A'}"`,
+    `"${record.vmProfile?.hardware?.gpu || 'N/A'}"`,
+    `"${record.vmProfile?.hardware?.storage || 'N/A'}"`,
+    `"${record.vmProfile?.chromeVersion || 'N/A'}"`,
+    `"${record.vmProfile?.networkAdapter || 'N/A'}"`,
+    `"${record.vmProfile?.systemInfo?.computerName || 'N/A'}"`,
+    `"${record.ipData?.ip ? record.ipData.ip + Math.floor(Math.random() * 255) : 'N/A'}"`,
+    `"${record.ipData?.isp || 'N/A'}"`,
+    `"${record.ipData?.city || 'N/A'}"`,
+    `"${record.ipData?.state || 'N/A'}"`,
+    `"token_${Date.now()}_${Math.random().toString(36).substr(2, 8)}"`,
+    `"admin_${Math.floor(Math.random() * 9000) + 1000}"`
   ];
   
   csvContent += row.join(',') + '\n';
@@ -840,12 +1191,13 @@ function getRandomElement(array) {
 }
 
 /**
- * Setup page with random fingerprint and Indian geolocation
- * Configures Puppeteer page with realistic browser fingerprinting, Indian IP geolocation,
+ * Setup page with random fingerprint, VM system profile, and Indian geolocation
+ * Configures Puppeteer page with realistic browser fingerprinting, VM identity,
  * network conditions, and device characteristics to simulate authentic user sessions
+ * Generates new VM profile every 5 clicks or uses existing one
  * 
  * @param {Object} page - Puppeteer page object
- * @returns {Object} Fingerprint configuration with userAgent, resolution, timezone, language, ipData, connectionInfo, locationTier
+ * @returns {Object} Fingerprint configuration with userAgent, resolution, timezone, language, ipData, connectionInfo, locationTier, vmProfile
  */
 async function setupPageFingerprint(page) {
   const userAgent = getRandomElement(userAgents);
@@ -856,14 +1208,32 @@ async function setupPageFingerprint(page) {
   const locationTier = getLocationTier(ipData.city);
   const connectionInfo = getRandomConnectionType(locationTier);
   
-  // Set user agent
-  await page.setUserAgent(userAgent);
+  // Generate VM system profile (new profile every 5 clicks when vmClickCounter resets to 0)
+  const vmProfile = vmClickCounter === 0 ? generateVmSystemProfile() : null;
+  
+  if (vmProfile) {
+    console.log(`[VM_PROFILE] 🖥️ New Virtual Machine Identity Generated:`);
+    console.log(`[VM_ID] ${vmProfile.vmId}`);
+    console.log(`[MAC_ADDRESS] ${vmProfile.macAddress}`);
+    console.log(`[OS] ${vmProfile.os}`);
+    console.log(`[CPU] ${vmProfile.hardware.cpu}`);
+    console.log(`[RAM] ${vmProfile.hardware.ram}`);
+    console.log(`[GPU] ${vmProfile.hardware.gpu}`);
+    console.log(`[COMPUTER_NAME] ${vmProfile.systemInfo.computerName}`);
+    console.log(`[CHROME_VERSION] ${vmProfile.chromeVersion}`);
+  }
+  
+  // Set user agent (include chrome version from VM profile if available)
+  const enhancedUserAgent = vmProfile ? 
+    userAgent.replace(/Chrome\/[\d.]+/, `Chrome/${vmProfile.chromeVersion}`) : 
+    userAgent;
+  await page.setUserAgent(enhancedUserAgent);
   
   // Set viewport
   await page.setViewport(resolution);
   
-  // Set extra headers with Indian geolocation hints and realistic browser headers
-  await page.setExtraHTTPHeaders({
+  // Set extra headers with Indian geolocation hints, realistic browser headers, and VM-specific details
+  const headers = {
     'Accept-Language': language,
     'Accept-Encoding': 'gzip, deflate, br',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -875,15 +1245,25 @@ async function setupPageFingerprint(page) {
     'Sec-Fetch-Mode': 'navigate',
     'Sec-Fetch-Site': 'none',
     'Sec-Fetch-User': '?1',
-    'X-Forwarded-For': ipData.ip,
-    'X-Real-IP': ipData.ip,
-    'CF-Connecting-IP': ipData.ip,
-    'X-Client-IP': ipData.ip,
-    'X-Original-Forwarded-For': ipData.ip
-  });
+    'X-Forwarded-For': ipData.ip + Math.floor(Math.random() * 255),
+    'X-Real-IP': ipData.ip + Math.floor(Math.random() * 255),
+    'CF-Connecting-IP': ipData.ip + Math.floor(Math.random() * 255),
+    'X-Client-IP': ipData.ip + Math.floor(Math.random() * 255),
+    'X-Original-Forwarded-For': ipData.ip + Math.floor(Math.random() * 255)
+  };
+  
+  // Add VM-specific headers if profile exists
+  if (vmProfile) {
+    headers['X-System-Info'] = `${vmProfile.systemInfo.computerName}|${vmProfile.os}|${vmProfile.systemInfo.architecture}`;
+    headers['X-Hardware-Info'] = `${vmProfile.hardware.cpu}|${vmProfile.hardware.ram}|${vmProfile.hardware.gpu}`;
+    headers['X-Network-Adapter'] = vmProfile.networkAdapter;
+    headers['X-MAC-Address'] = vmProfile.macAddress;
+  }
+  
+  await page.setExtraHTTPHeaders(headers);
   
   // Override timezone and other properties including geolocation and connection info
-  await page.evaluateOnNewDocument((tz, ipInfo, connInfo) => {
+  await page.evaluateOnNewDocument((tz, ipInfo, connInfo, vmInfo) => {
     // Override timezone
     Object.defineProperty(Intl.DateTimeFormat.prototype, 'resolvedOptions', {
       value: function() {
@@ -938,17 +1318,47 @@ async function setupPageFingerprint(page) {
       }
     });
     
-    // Enhanced navigator properties for better fingerprinting
+    // Enhanced navigator properties with VM-specific hardware
+    const hardwareCores = vmInfo ? vmInfo.hardware.cores : Math.floor(Math.random() * 8) + 2;
+    const deviceRAM = vmInfo ? parseInt(vmInfo.hardware.ram) : [1, 2, 4, 8, 16][Math.floor(Math.random() * 5)];
+    
     Object.defineProperty(navigator, 'hardwareConcurrency', { 
-      value: Math.floor(Math.random() * 8) + 2 // 2-10 cores
+      value: hardwareCores
     });
     Object.defineProperty(navigator, 'deviceMemory', { 
-      value: [1, 2, 4, 8, 16][Math.floor(Math.random() * 5)] // Realistic RAM values
+      value: deviceRAM
     });
     Object.defineProperty(navigator, 'maxTouchPoints', {
       value: /Mobile|Android|iPhone|iPad/.test(navigator.userAgent) ? 
         Math.floor(Math.random() * 5) + 5 : 0 // Mobile: 5-10 touch points, Desktop: 0
     });
+    
+    // Add VM-specific system information to navigator
+    if (vmInfo) {
+      Object.defineProperty(navigator, 'systemInfo', {
+        value: {
+          computerName: vmInfo.systemInfo.computerName,
+          architecture: vmInfo.systemInfo.architecture,
+          processorId: vmInfo.systemInfo.processorId,
+          macAddress: vmInfo.macAddress,
+          operatingSystem: vmInfo.os
+        },
+        writable: false,
+        enumerable: true
+      });
+      
+      // Add hardware profile information
+      Object.defineProperty(navigator, 'hardwareProfile', {
+        value: {
+          cpu: vmInfo.hardware.cpu,
+          gpu: vmInfo.hardware.gpu,
+          motherboard: vmInfo.hardware.motherboard,
+          storage: vmInfo.hardware.storage
+        },
+        writable: false,
+        enumerable: true
+      });
+    }
     
     // Add realistic connection information
     if (navigator.connection || navigator.mozConnection || navigator.webkitConnection) {
@@ -979,22 +1389,26 @@ async function setupPageFingerprint(page) {
     Object.defineProperty(screen, 'colorDepth', { value: 24 });
     Object.defineProperty(screen, 'pixelDepth', { value: 24 });
     
-    // Add WebGL fingerprint randomization
+    // Add WebGL fingerprint randomization with VM-specific GPU info
     const originalGetParameter = WebGLRenderingContext.prototype.getParameter;
     WebGLRenderingContext.prototype.getParameter = function(parameter) {
       if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
-        const vendors = ['Intel Inc.', 'NVIDIA Corporation', 'AMD', 'Qualcomm', 'ARM'];
+        const vendors = vmInfo && vmInfo.hardware.gpuBrand ? 
+          [vmInfo.hardware.gpuBrand + ' Corporation'] : 
+          ['Intel Inc.', 'NVIDIA Corporation', 'AMD', 'Qualcomm', 'ARM'];
         return vendors[Math.floor(Math.random() * vendors.length)];
       }
       if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
-        const renderers = [
-          'Intel Iris OpenGL Engine',
-          'NVIDIA GeForce GTX 1060',
-          'AMD Radeon RX 580',
-          'Adreno (TM) 530',
-          'Mali-G76 MP12'
-        ];
-        return renderers[Math.floor(Math.random() * renderers.length)];
+        const renderers = vmInfo && vmInfo.hardware.gpu ? 
+          [vmInfo.hardware.gpu] : 
+          [
+            'Intel Iris OpenGL Engine',
+            'NVIDIA GeForce GTX 1060',
+            'AMD Radeon RX 580',
+            'Adreno (TM) 530',
+            'Mali-G76 MP12'
+          ];
+        return renderers[0] || renderers[Math.floor(Math.random() * renderers.length)];
       }
       return originalGetParameter.call(this, parameter);
     };
@@ -1021,16 +1435,17 @@ async function setupPageFingerprint(page) {
       return originalNow.call(this) + (Math.random() - 0.5) * 0.1;
     };
     
-  }, timezone, ipData, connectionInfo);
+  }, timezone, ipData, connectionInfo, vmProfile);
   
   return { 
-    userAgent, 
+    userAgent: enhancedUserAgent, 
     resolution, 
     timezone, 
     language, 
     ipData, 
     connectionInfo,
-    locationTier
+    locationTier,
+    vmProfile
   };
 }
 
@@ -1100,6 +1515,17 @@ async function openEnhancedTabs(url, numberOfClicks) {
       
       console.log(`[WINDOW] New browser window opened for click ${clickIndex + 1}`);
       console.log(`[USER] Account: ${accountDetails.name} (${accountDetails.email})`);
+      
+      // Setup page fingerprint with VM identity
+      console.log(`[FINGERPRINT] Setting up page fingerprint and VM identity...`);
+      const fingerprint = await setupPageFingerprint(page);
+      
+      console.log(`[FINGERPRINT] Page configured with enhanced identity:`);
+      if (fingerprint.vmProfile) {
+        console.log(`[VM_IDENTITY] ${fingerprint.vmProfile.vmId} - ${fingerprint.vmProfile.macAddress}`);
+        console.log(`[VM_HARDWARE] ${fingerprint.vmProfile.hardware.cpu} | ${fingerprint.vmProfile.hardware.ram} | ${fingerprint.vmProfile.hardware.gpu}`);
+      }
+      console.log(`[GEOLOCATION] ${fingerprint.ipData.city}, ${fingerprint.ipData.state} (${fingerprint.ipData.isp})`);
       
       // Navigate to the URL and wait for complete load
       console.log(`[NAVIGATION] Accessing target URL...`);
@@ -1371,7 +1797,7 @@ async function openEnhancedTabs(url, numberOfClicks) {
       console.log(`[COMPLETE] Click ${clickIndex + 1} completed in ${clickDuration}s`);
       console.log(`[TRACKING] Engagement recorded for ${accountDetails.name}`);
       
-      // Prepare click data for CSV report
+      // Prepare enhanced click data for CSV report with VM and fingerprint information
       const clickData = {
         tabNumber: clickIndex + 1,
         username: accountDetails.name,
@@ -1382,7 +1808,11 @@ async function openEnhancedTabs(url, numberOfClicks) {
         sessionStartTime: sessionStartTime,
         sessionEndTime: sessionEndTime,
         timeTaken: parseFloat(clickDuration),
-        interactionDuration: (interactionDelay / 1000).toFixed(2)
+        interactionDuration: (interactionDelay / 1000).toFixed(2),
+        vmProfile: fingerprint.vmProfile,
+        ipData: fingerprint.ipData,
+        fingerprint: fingerprint,
+        connectionInfo: fingerprint.connectionInfo
       };
       
       // Increment click counter (always returns true now)
@@ -1446,16 +1876,23 @@ async function runEnhancedAutomation() {
   
   const clicksPerBatch = 20; // 20 clicks per batch (higher engagement)
   
-  console.log("[SYSTEM] Starting Continuous Individual Window Automation");
+  console.log("[SYSTEM] Starting Continuous Individual Window Automation with Virtual Machine Rotation");
   console.log("=".repeat(70));
   console.log(`[CONFIG] URLs to process: ${urls.length}`);
   console.log(`[CONFIG] Clicks per batch: ${clicksPerBatch}`);
   console.log(`[CONFIG] Windows: 1 dedicated window per click`);
+  console.log(`[CONFIG] VM Rotation: New system identity every 5 clicks`);
+  console.log(`[CONFIG] MAC Address: Changes with each virtual machine rotation`);
+  console.log(`[CONFIG] Hardware Profile: CPU, RAM, GPU varies per VM`);
+  console.log(`[CONFIG] System Details: OS, Computer Name, Architecture changes`);
+  console.log(`[CONFIG] Comprehensive Logging: All VM and system details logged`);
   console.log(`[CONFIG] Delay after every 10 clicks: 30 seconds`);
   console.log(`[CONFIG] Random delay after each click: 5-20 seconds (prevents rate limiting)`);
   console.log(`[CONFIG] Response wait time: 7s + 10s = 17s total`);
   console.log(`[CONFIG] Script runs continuously (no auto-exit)`);
   console.log(`[PERFORMANCE] 🖥️ Windows optimized - One window per click!`);
+  console.log(`[VM_SYSTEM] 🔄 Virtual machine rotation every 5 clicks`);
+  console.log(`[LOGGING] 📊 Enhanced logging with VM and system identity data`);
   console.log(`[TIMING] ⚡ Reduced delays for faster execution + anti-rate-limit`);
   console.log(`[ANTI_RATE_LIMIT] 🛡️ Random delays prevent Gemini "check internet connection" errors`);
   console.log("=".repeat(70) + "\n");
@@ -1466,6 +1903,7 @@ async function runEnhancedAutomation() {
   // Continue running indefinitely until manually stopped
   while (true) {
     console.log(`\n[BATCH] Starting batch ${batchCount} - Current total clicks: ${globalClickCounter}`);
+    console.log(`[VM_STATUS] Current VM: ${currentVmId} | VM clicks: ${vmClickCounter}/5 | Next VM rotation in ${5 - vmClickCounter} clicks`);
     
       // Process each URL in the batch (5 clicks total per batch)
       for (let urlIndex = 0; urlIndex < urls.length; urlIndex++) {
